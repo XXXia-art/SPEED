@@ -48,7 +48,7 @@ def main():
     parser = argparse.ArgumentParser()
     # Base Config
     parser.add_argument('--save_root', type=str, default='')
-    parser.add_argument('--sd_ckpt', type=str, default="CompVis/stable-diffusion-v1-4")
+    parser.add_argument('--sd_ckpt', help='base version for stable diffusion', type=str, default='/data/share/model_weight/SD/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b')
     parser.add_argument('--seed', type=int, default=0)
     # Sampling Config
     parser.add_argument('--mode', type=str, default='original', help='original, edit')
@@ -59,7 +59,6 @@ def main():
     parser.add_argument('--prompts', type=str, default=None)
     # Erasing Config
     parser.add_argument('--erase_type', type=str, default='', help='instance, style, celebrity')
-    parser.add_argument('--target_concept', type=str, default='')
     parser.add_argument('--contents', type=str, default='')
     parser.add_argument('--edit_ckpt', type=str, required=False)
     args = parser.parse_args()
@@ -109,9 +108,9 @@ def main():
                                             text_embeddings=torch.cat([uncond_embedding] * bs + [embedding], dim=0), 
                                             total_timesteps=args.total_timesteps, 
                                             guidance_scale=args.guidance_scale, 
-                                            desc=f"{count * len(data['prompt'])} x prompts | edit")
-            
-            save_path = os.path.join(args.save_root, args.target_concept.replace(', ', '_'), content)
+                                            desc=f"{count * len(['pdatarompt'])} x prompts | edit")
+            ## TODO
+            save_path = os.path.join(args.save_root, content)
             for mode in mode_list: os.makedirs(os.path.join(save_path, mode), exist_ok=True)
             if len(mode_list) > 1: os.makedirs(os.path.join(save_path, 'combine'), exist_ok=True)
 

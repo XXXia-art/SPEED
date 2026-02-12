@@ -48,7 +48,7 @@ def main():
     parser = argparse.ArgumentParser()
     # Base Config
     parser.add_argument('--save_root', type=str, default='')
-    parser.add_argument('--sd_ckpt', type=str, default="CompVis/stable-diffusion-v1-4")
+    parser.add_argument('--sd_ckpt', help='base version for stable diffusion', type=str, default='/data/share/model_weight/SD/models--CompVis--stable-diffusion-v1-4/snapshots/133a221b8aa7292a167afc5127cb63fb5005638b')
     parser.add_argument('--seed', type=int, default=0)
     # Sampling Config
     parser.add_argument('--mode', type=str, default='original', help='original, edit')

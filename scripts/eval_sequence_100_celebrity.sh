@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Sequentially edit 100 celebrity concepts and evaluate on COCO after each edit.
-
 baseline="SPEED"
 params="V"
 aug_num=10
@@ -10,11 +8,13 @@ retain_scale="0.05"
 save_root="logs/${baseline}/seq_multi_100_coco"
 erase_type="100_celebrity"
 anchor="person"
-TRAIN_GPU=0
-EVAL_GPU_IDX=('1' '2' '3')
+
+TRAIN_GPU=1
+EVAL_GPU_IDX=('2' '3')
 NUM_EVAL_GPUS=${#EVAL_GPU_IDX[@]}
 EVAL_INTERVAL=10
 EVAL_BATCH_SIZE=10
+
 
 celebrities=(
   "Adam Driver"
@@ -119,45 +119,50 @@ celebrities=(
   "Zayn Malik"
 )
 
-limit_target_name() {
-  local target="$1"
-  local num
-  num=$(echo "$target" | tr -cd ',' | wc -c)
-  num=$((num + 1))
-  local limited_target
-  limited_target=$(echo "$target" | awk -F', ' '{for (i=1; i<=NF && i<=5; i++) printf (i<NF && i<5 ? $i "_": $i)}')
-  if [ "$num" -gt 5 ]; then
-    limited_target="${limited_target}_${num}"
-  fi
-  echo "$limited_target"
-}
 
 for i in "${!celebrities[@]}"; do
+  current="${celebrities[$i]}"
+
   targets=$(printf "%s, " "${celebrities[@]:0:$((i + 1))}")
   targets=${targets%, }
-  limited_target=$(limit_target_name "$targets")
 
-  echo "Sequential edit step $((i + 1))/100: ${limited_target}"
+  echo "Sequential edit step $((i + 1)) / ${#celebrities[@]} : ${current}"
+
+  # ---------- 构造 edit_ckpt 参数（用 array，避免空格炸掉） ----------
+  EXTRA_ARGS=()
+  if [ "$i" -gt 0 ]; then
+    prev="${celebrities[$((i - 1))]}"
+    prev_ckpt="${save_root}/${erase_type}/${prev}/weight.pt"
+    echo "[INFO] Load previous edit: ${prev_ckpt}"
+    EXTRA_ARGS+=(--edit_ckpt "$prev_ckpt")
+  fi
+  # ------------------------------------------------------------------
 
   CUDA_VISIBLE_DEVICES=$TRAIN_GPU python train_erase_null.py \
-    --baseline "$baseline" \
-    --target_concepts "$targets" --anchor_concepts "$anchor" \
-    --retain_path "data/${erase_type}.csv" --heads "concept" \
-    --save_path "${save_root}/${erase_type}/${limited_target}" --file_name "weight" \
-    --params "$params" --aug_num "$aug_num" --threshold "$threshold" \
-    --retain_scale "$retain_scale" --disable_filter
+    --target_concepts "$targets" \
+    --anchor_concepts "$anchor" \
+    --retain_path "data/${erase_type}.csv" \
+    --heads "concept" \
+    --save_path "${save_root}/${erase_type}/${current}" \
+    --file_name "weight" \
+    --params "$params" \
+    --aug_num "$aug_num" \
+    --threshold "$threshold" \
+    --retain_scale "$retain_scale" \
+    "${EXTRA_ARGS[@]}"
 
   if (((i + 1) % EVAL_INTERVAL == 0)); then
     eval_gpu=${EVAL_GPU_IDX[$(( (i / EVAL_INTERVAL) % NUM_EVAL_GPUS ))]}
     (
       CUDA_VISIBLE_DEVICES=$eval_gpu python sample2.py \
         --erase_type "coco" \
-        --target_concept "$limited_target" \
+        --target_concept "$current" \
         --contents "coco" \
         --mode "edit" \
-        --num_samples 1 --batch_size "$EVAL_BATCH_SIZE" \
+        --num_samples 1 \
+        --batch_size "$EVAL_BATCH_SIZE" \
         --save_root "${save_root}/${erase_type}" \
-        --edit_ckpt "${save_root}/${erase_type}/${limited_target}/weight.pt"
+        --edit_ckpt "${save_root}/${erase_type}/${current}/weight.pt"
 
       CUDA_VISIBLE_DEVICES=$eval_gpu python src/clip_score_cal.py \
         --contents "coco" \

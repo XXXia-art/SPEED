@@ -16,7 +16,11 @@ class Generate_Dataset(Dataset):
         super().__init__()
         root_path = os.path.join(path, content, sub_root)
         self.content = content
+        if not os.path.isdir(root_path):
+            raise FileNotFoundError(f"Missing image directory: {root_path}")
         self.images = [os.path.join(root_path, name) for name in os.listdir(root_path)]
+        if not self.images:
+            raise ValueError(f"No images found in: {root_path}")
         if content == 'coco':
             df = pd.read_csv("data/mscoco.csv")
             self.texts = [df.loc[df['image_id'].isin([int(os.path.basename(x).replace('COCO_val2014_', '').split('.')[0])]), 'text'].tolist()[0] for x in self.images]
@@ -76,7 +80,7 @@ if __name__ == '__main__':
 
     contents = [item.strip() for item in args.contents.split(',')]
     root_paths = find_root_paths(args.root_path, args.sub_root)
-
+    print(f"Caculating CLIP Score and FID for {root_paths}... \n")
     CS_calculator = CLIP_Score()
 
     for root_path in root_paths:
@@ -103,5 +107,9 @@ if __name__ == '__main__':
                 )
                 with open(save_txt, 'a') as f:
                     f.writelines(f"{content}: CS is {CS * 100}, FID is {FIDELITY['frechet_inception_distance']} \n")
+                print(f"{content}: CS is {CS * 100}, FID is {FIDELITY['frechet_inception_distance']}")
         except Exception as e:
-            pass
+            save_txt = os.path.join(root_path, 'record_metrics.txt')
+            with open(save_txt, 'a') as f:
+                f.writelines(f"[ERROR] Failed to score {root_path}: {e}\n")
+            print(f"[ERROR] Failed to score {root_path}: {e}", file=sys.stderr)
